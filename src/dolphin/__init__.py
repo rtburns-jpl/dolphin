@@ -5,3 +5,5 @@ from dolphin._version import version as __version__
 from ._dates import *
 from ._log import *
 from ._show_versions import *
+
+from .goldstein import goldstein

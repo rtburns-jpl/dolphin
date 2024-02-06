@@ -18,6 +18,7 @@ from dolphin._log import get_log, log_runtime
 from dolphin._types import Filename
 from dolphin.utils import full_suffix, progress
 from dolphin.workflows import UnwrapMethod
+from dolphin import goldstein
 
 logger = get_log(__name__)
 
@@ -260,7 +261,32 @@ def unwrap(
             f"Mask {mask_shape} and interferogram {shape} shapes don't match"
         )
 
+    filt_ifg_filename = ifg_filename.with_suffix(".int.filt")
+    ifg = gdal.Open(ifg_filename).ReadAsArray()
+    ifg[ifg==0] = np.nan * 1j
+    #print("Goldstein filtering...")
+    filt_ifg = goldstein(ifg, alpha=0.5, psize=32)
+    #print("...done!")
+    filt_ifg[filt_ifg==0] = np.nan * 1j
+    #ifg = np.angle(ifg)
+    #print("Writing filtered output...")
+    io.write_arr(
+        arr=filt_ifg,
+        output_name=filt_ifg_filename,
+        #dtype=np.float32,
+        dtype=np.complex64,
+        driver="ENVI",
+        options=list(io.DEFAULT_ENVI_OPTIONS),
+    )
+    filt_ifg_raster = Raster(fspath(filt_ifg_filename))
+    #print("...done!")
+
     ifg_raster = Raster(fspath(ifg_filename))
+
+    # XXX hack
+    ifg_filename = filt_ifg_filename
+    ifg_raster = filt_ifg_raster
+
     corr_raster = Raster(fspath(corr_filename))
     mask_raster = Raster(fspath(mask_file)) if mask_file else None
     unw_suffix = full_suffix(unw_filename)
@@ -340,6 +366,27 @@ def unwrap(
             ifg_raster,
             corr_raster,
         )
+
+    unw_arr = gdal.Open(unw_filename).ReadAsArray()
+    #unw_arr[unw_arr==0] = np.nan
+
+    # XXX debug output
+    np.angle(ifg).tofile("ifg.bin")
+    unw_arr.tofile("unw_arr.bin")
+    np.angle(filt_ifg).tofile("filt_ifg.bin")
+
+    final_arr = np.angle(ifg) + (unw_arr - np.angle(filt_ifg))
+
+    final_filename = unw_filename.with_suffix(unw_filename.suffix + ".final")
+    io.write_arr(
+        arr=final_arr,
+        output_name=final_filename,
+        #dtype=np.float32,
+        dtype=np.complex64,
+        driver="ENVI",
+        options=list(io.DEFAULT_ENVI_OPTIONS),
+    )
+
     del unw_raster, conncomp_raster
     return Path(unw_filename), Path(conncomp_filename)
 
