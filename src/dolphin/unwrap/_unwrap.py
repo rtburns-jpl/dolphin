@@ -198,7 +198,7 @@ def unwrap(
     unw_nodata: float | None = DEFAULT_UNW_NODATA,
     ccl_nodata: int | None = DEFAULT_CCL_NODATA,
     scratchdir: Optional[Filename] = None,
-    run_goldstein: bool = True,
+    run_goldstein: bool = False,
     alpha: float = 0.5,
 ) -> tuple[Path, Path]:
     """Unwrap a single interferogram using snaphu, isce3, or tophu.
