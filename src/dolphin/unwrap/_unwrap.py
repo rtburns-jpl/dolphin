@@ -5,7 +5,6 @@ from pathlib import Path
 from typing import Optional, Sequence, Union
 
 import numpy as np
-from osgeo import gdal
 from tqdm.auto import tqdm
 
 from dolphin import goldstein, io
@@ -23,8 +22,6 @@ from ._constants import (
 from ._isce3 import unwrap_isce3
 from ._tophu import multiscale_unwrap
 from ._utils import create_combined_mask, set_nodata_values
-
-gdal.UseExceptions()
 
 logger = get_log(__name__)
 
@@ -51,7 +48,7 @@ def run(
     ccl_nodata: int | None = DEFAULT_CCL_NODATA,
     scratchdir: Optional[Filename] = None,
     overwrite: bool = False,
-    run_goldstein: bool = True,
+    run_goldstein: bool = False,
     alpha: float = 0.5,
 ) -> tuple[list[Path], list[Path]]:
     """Run snaphu on all interferograms in a directory.
@@ -198,7 +195,7 @@ def unwrap(
     unw_nodata: float | None = DEFAULT_UNW_NODATA,
     ccl_nodata: int | None = DEFAULT_CCL_NODATA,
     scratchdir: Optional[Filename] = None,
-    run_goldstein: bool = False,
+    run_goldstein: bool = True,
     alpha: float = 0.5,
 ) -> tuple[Path, Path]:
     """Unwrap a single interferogram using snaphu, isce3, or tophu.
@@ -293,7 +290,7 @@ def unwrap(
         filt_ifg_filename = scratchdir / ifg_filename.with_suffix(".filt" + suf).name
         scratch_unw_filename = unw_filename.with_suffix(".filt.unw" + suf)
 
-        ifg = gdal.Open(ifg_filename).ReadAsArray()
+        ifg = io.load_gdal(ifg_filename)
         ifg[ifg == 0] = np.nan * 1j
         logger.info(f"Goldstein filtering {ifg_filename} -> {filt_ifg_filename}")
         filt_ifg = goldstein(ifg, alpha=0.5, psize=32)
@@ -384,7 +381,7 @@ def unwrap(
     # back to original interferogram
     if run_goldstein:
         logger.info("Transferring ambiguity numbers from filtered ifg")
-        unw_arr = gdal.Open(scratch_unw_filename).ReadAsArray()
+        unw_arr = io.load_gdal(scratch_unw_filename)
         # unw_arr[unw_arr==0] = np.nan
 
         # XXX debug output
