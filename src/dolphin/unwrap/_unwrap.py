@@ -195,7 +195,7 @@ def unwrap(
     unw_nodata: float | None = DEFAULT_UNW_NODATA,
     ccl_nodata: int | None = DEFAULT_CCL_NODATA,
     scratchdir: Optional[Filename] = None,
-    run_goldstein: bool = True,
+    run_goldstein: bool = False,
     alpha: float = 0.5,
 ) -> tuple[Path, Path]:
     """Unwrap a single interferogram using snaphu, isce3, or tophu.
@@ -287,6 +287,9 @@ def unwrap(
         else:
             driver = "ENVI"
             opts = list(io.DEFAULT_ENVI_OPTIONS)
+
+        # if we're running Goldstein filtering, the intermediate
+        # filtered/unwrapped rasters are temporary rasters in the scratch dir.
         filt_ifg_filename = scratchdir / ifg_filename.with_suffix(".filt" + suf).name
         scratch_unw_filename = unw_filename.with_suffix(".filt.unw" + suf)
 
@@ -300,21 +303,11 @@ def unwrap(
         io.write_arr(
             arr=filt_ifg,
             output_name=filt_ifg_filename,
-            # dtype=np.float32,
-            dtype=np.complex64,
-            driver=driver,
-            options=opts,
-        )
-        # Additionally, if we're running Goldstein filtering, the intermediate
-        # filtered/unwrapped rasters are temporary rasters in the scratch dir.
-        io.write_arr(
-            arr=None,
-            output_name=scratch_unw_filename,
-            driver=driver,
-            dtype=np.float32,
             like_filename=ifg_filename,
+            driver=driver,
             options=opts,
         )
+
         unwrapper_ifg_filename = filt_ifg_filename
         unwrapper_unw_filename = scratch_unw_filename
     else:
@@ -392,7 +385,7 @@ def unwrap(
         final_arr = np.angle(ifg) + (unw_arr - np.angle(filt_ifg))
 
         io.write_arr(
-            arr=np.angle(final_arr),
+            arr=final_arr,
             output_name=unw_filename,
             dtype=np.float32,
             driver=driver,
