@@ -4,8 +4,9 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Optional, Sequence, Union
 
-from tqdm.auto import tqdm
 import numpy as np
+from osgeo import gdal
+from tqdm.auto import tqdm
 
 from dolphin import goldstein, io
 from dolphin._log import get_log, log_runtime
@@ -23,7 +24,6 @@ from ._isce3 import unwrap_isce3
 from ._tophu import multiscale_unwrap
 from ._utils import create_combined_mask, set_nodata_values
 
-from osgeo import gdal
 gdal.UseExceptions()
 
 logger = get_log(__name__)
@@ -294,16 +294,16 @@ def unwrap(
         scratch_unw_filename = unw_filename.with_suffix(".filt.unw" + suf)
 
         ifg = gdal.Open(ifg_filename).ReadAsArray()
-        ifg[ifg==0] = np.nan * 1j
+        ifg[ifg == 0] = np.nan * 1j
         logger.info(f"Goldstein filtering {ifg_filename} -> {filt_ifg_filename}")
         filt_ifg = goldstein(ifg, alpha=0.5, psize=32)
-        filt_ifg[filt_ifg==0] = np.nan * 1j
-        #ifg = np.angle(ifg)
+        filt_ifg[filt_ifg == 0] = np.nan * 1j
+        # ifg = np.angle(ifg)
         logger.info(f"Writing filtered output to {filt_ifg_filename}")
         io.write_arr(
             arr=filt_ifg,
             output_name=filt_ifg_filename,
-            #dtype=np.float32,
+            # dtype=np.float32,
             dtype=np.complex64,
             driver=driver,
             options=opts,
@@ -326,6 +326,7 @@ def unwrap(
 
     if unwrap_method == UnwrapMethod.SNAPHU:
         from ._snaphu_py import unwrap_snaphu_py
+
         # Pass everything to snaphu-py
         unw_path, conncomp_path = unwrap_snaphu_py(
             unwrapper_ifg_filename,
@@ -384,7 +385,7 @@ def unwrap(
     if run_goldstein:
         logger.info("Transferring ambiguity numbers from filtered ifg")
         unw_arr = gdal.Open(scratch_unw_filename).ReadAsArray()
-        #unw_arr[unw_arr==0] = np.nan
+        # unw_arr[unw_arr==0] = np.nan
 
         # XXX debug output
         np.angle(ifg).tofile("ifg.bin")
