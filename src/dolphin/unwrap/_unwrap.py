@@ -22,9 +22,6 @@ from ._constants import (
 from ._tophu import multiscale_unwrap
 from ._utils import create_combined_mask, set_nodata_values
 
-from osgeo import gdal
-gdal.UseExceptions()
-
 logger = get_log(__name__)
 
 __all__ = ["run", "unwrap"]
@@ -292,7 +289,7 @@ def unwrap(
         filt_ifg_filename = scratchdir / ifg_filename.with_suffix(".filt" + suf).name
         scratch_unw_filename = unw_filename.with_suffix(".filt.unw" + suf)
 
-        ifg = gdal.Open(ifg_filename).ReadAsArray()
+        ifg = io.load_gdal(ifg_filename)
         ifg[ifg==0] = np.nan * 1j
         logger.info(f"Goldstein filtering {ifg_filename} -> {filt_ifg_filename}")
         filt_ifg = goldstein(ifg, alpha=0.5, psize=32)
@@ -373,7 +370,7 @@ def unwrap(
     # back to original interferogram
     if run_goldstein:
         logger.info("Transferring ambiguity numbers from filtered ifg")
-        unw_arr = gdal.Open(scratch_unw_filename).ReadAsArray()
+        unw_arr = io.load_gdal(scratch_unw_filename)
         #unw_arr[unw_arr==0] = np.nan
 
         # XXX debug output
