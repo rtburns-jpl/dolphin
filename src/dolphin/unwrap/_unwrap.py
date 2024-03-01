@@ -286,6 +286,9 @@ def unwrap(
         else:
             driver = "ENVI"
             opts = list(io.DEFAULT_ENVI_OPTIONS)
+
+        # If we're running Goldstein filtering, the intermediate
+        # filtered/unwrapped rasters are temporary rasters in the scratch dir.
         filt_ifg_filename = scratchdir / ifg_filename.with_suffix(".filt" + suf).name
         scratch_unw_filename = unw_filename.with_suffix(".filt.unw" + suf)
 
@@ -299,19 +302,8 @@ def unwrap(
         io.write_arr(
             arr=filt_ifg,
             output_name=filt_ifg_filename,
-            #dtype=np.float32,
-            dtype=np.complex64,
-            driver=driver,
-            options=opts,
-        )
-        # Additionally, if we're running Goldstein filtering, the intermediate
-        # filtered/unwrapped rasters are temporary rasters in the scratch dir.
-        io.write_arr(
-            arr=None,
-            output_name=scratch_unw_filename,
-            driver=driver,
-            dtype=np.float32,
             like_filename=ifg_filename,
+            driver=driver,
             options=opts,
         )
         unwrapper_ifg_filename = filt_ifg_filename
@@ -369,7 +361,7 @@ def unwrap(
     # Transfer ambiguity numbers from filtered unwrapped interferogram
     # back to original interferogram
     if run_goldstein:
-        logger.info("Transferring ambiguity numbers from filtered ifg")
+        logger.info(f"Transferring ambiguity numbers from filtered ifg {scratch_unw_filename}")
         unw_arr = io.load_gdal(scratch_unw_filename)
         #unw_arr[unw_arr==0] = np.nan
 
