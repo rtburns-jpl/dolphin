@@ -293,10 +293,8 @@ def unwrap(
         scratch_unw_filename = unw_filename.with_suffix(".filt.unw" + suf)
 
         ifg = io.load_gdal(ifg_filename)
-        ifg[ifg==0] = np.nan * 1j
         logger.info(f"Goldstein filtering {ifg_filename} -> {filt_ifg_filename}")
         filt_ifg = goldstein(ifg, alpha=0.5, psize=32)
-        filt_ifg[filt_ifg==0] = np.nan * 1j
         #ifg = np.angle(ifg)
         logger.info(f"Writing filtered output to {filt_ifg_filename}")
         io.write_arr(
