@@ -91,9 +91,8 @@ def get_orbit_arrays(
         times = orbit_group["time"][:]
         positions = np.stack([orbit_group[f"position_{p}"] for p in ["x", "y", "z"]]).T
         velocities = np.stack([orbit_group[f"velocity_{p}"] for p in ["x", "y", "z"]]).T
-        # take out ":26" once COMPASS fixes format
         reference_epoch = datetime.datetime.fromisoformat(
-            orbit_group["reference_epoch"][()][:26].decode()
+            orbit_group["reference_epoch"][()].decode()
         )
 
     return times, positions, velocities, reference_epoch
@@ -190,7 +189,8 @@ def get_lonlat_grid(h5file: Filename, subsample: int = 100):
 def compute_baselines(
     h5file_ref: Filename,
     h5file_sec: Filename,
-    latlon_subsample: int = 30,
+    height: float = 0.0,
+    latlon_subsample: int = 100,
     threshold: float = 1e-08,
     maxiter: int = 50,
     delta_range: float = 10.0,
@@ -203,6 +203,9 @@ def compute_baselines(
         Path to reference OPERA S1 CSLC HDF5 file.
     h5file_sec : Filename
         Path to secondary OPERA S1 CSLC HDF5 file.
+    height: float
+        Target height to use for baseline computation.
+        Default = 0.0
     latlon_subsample: int
         Factor by which to subsample the CSLC latitude/longitude grids.
         Default = 30
@@ -218,22 +221,17 @@ def compute_baselines(
 
     Returns
     -------
-    lat : np.ndarray
-        1D Array of latitude coordinates in degrees.
     lon : np.ndarray
-        1D Array of longitude coordinates in degrees.
-    heights : np.ndarray
-        1D array of heights
+        2D array of longitude coordinates in degrees.
+    lat : np.ndarray
+        2D array of latitude coordinates in degrees.
     baselines : np.ndarray
-        3D cube of perpendicular baselines
+        2D array of perpendicular baselines
 
     """
     lon_grid, lat_grid = get_lonlat_grid(h5file_ref, subsample=latlon_subsample)
     lon_arr = lon_grid.ravel()
     lat_arr = lat_grid.ravel()
-
-    num_heights = 5
-    heights = np.linspace(0, 3000, num=num_heights)
 
     ellipsoid = isce3.core.Ellipsoid()
     zero_doppler = isce3.core.LUT2d()
@@ -244,40 +242,38 @@ def compute_baselines(
     orbit_sec = get_cslc_orbit(h5file_sec)
 
     baselines = []
-    print(f"{lon_grid.shape = }")
-    for h in heights:
-        for lon, lat in zip(lon_arr, lat_arr):
-            llh_rad = np.array([lon, lat, h]).reshape((3, 1))
-            az_time_ref, range_ref = isce3.geometry.geo2rdr(
-                llh_rad,
-                ellipsoid,
-                orbit_ref,
-                zero_doppler,
-                wavelength,
-                side,
-                threshold=threshold,
-                maxiter=maxiter,
-                delta_range=delta_range,
-            )
-            az_time_sec, range_sec = isce3.geometry.geo2rdr(
-                llh_rad,
-                ellipsoid,
-                orbit_sec,
-                zero_doppler,
-                wavelength,
-                side,
-                threshold=threshold,
-                maxiter=maxiter,
-                delta_range=delta_range,
-            )
+    for lon, lat in zip(lon_arr, lat_arr):
+        llh_rad = np.array([lon, lat, height]).reshape((3, 1))
+        az_time_ref, range_ref = isce3.geometry.geo2rdr(
+            llh_rad,
+            ellipsoid,
+            orbit_ref,
+            zero_doppler,
+            wavelength,
+            side,
+            threshold=threshold,
+            maxiter=maxiter,
+            delta_range=delta_range,
+        )
+        az_time_sec, range_sec = isce3.geometry.geo2rdr(
+            llh_rad,
+            ellipsoid,
+            orbit_sec,
+            zero_doppler,
+            wavelength,
+            side,
+            threshold=threshold,
+            maxiter=maxiter,
+            delta_range=delta_range,
+        )
 
-            pos_ref, velocity = orbit_ref.interpolate(az_time_ref)
-            pos_sec, _ = orbit_sec.interpolate(az_time_sec)
-            b = compute(
-                llh_rad, pos_ref, pos_sec, range_ref, range_sec, velocity, ellipsoid
-            )
+        pos_ref, velocity = orbit_ref.interpolate(az_time_ref)
+        pos_sec, _ = orbit_sec.interpolate(az_time_sec)
+        b = compute(
+            llh_rad, pos_ref, pos_sec, range_ref, range_sec, velocity, ellipsoid
+        )
 
-            baselines.append(b)
+        baselines.append(b)
 
-    baseline_cube = np.array(baselines).reshape(num_heights, *lon_grid.shape)
-    return np.unique(lon_arr), np.unique(lat_arr), heights, baseline_cube
+    baseline_cube = np.array(baselines).reshape(lon_grid.shape)
+    return lon_grid, lat_grid, baseline_cube
